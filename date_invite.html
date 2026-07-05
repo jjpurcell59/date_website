@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DateService.exe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     CONFIG — edit these values before you send the link out
+     ============================================================ */
+  :root {
+    --face: #c0c0c0;
+    --face-light: #dfdfdf;
+    --face-dark: #808080;
+    --face-darker: #000000;
+    --titlebar: linear-gradient(90deg, #000080, #1084d0);
+    --highlight: #000080;
+    --desktop-teal: #008080;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--desktop-teal);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 40px);
+    font-family: Tahoma, "MS Sans Serif", Geneva, sans-serif;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Boot screen ---------- */
+  #boot {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    color: #c0c0c0;
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    padding: 24px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+  }
+  #boot .line { opacity: 0; white-space: pre; }
+  #boot .cursor {
+    display: inline-block;
+    width: 10px; height: 18px;
+    background: #c0c0c0;
+    animation: blink 1s steps(1) infinite;
+    vertical-align: middle;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  #boot .skip {
+    position: absolute;
+    bottom: 16px;
+    right: 24px;
+    font-size: 14px;
+    color: #666;
+  }
+
+  /* ---------- Window chrome ---------- */
+  #window {
+    width: 560px;
+    max-width: 94vw;
+    background: var(--face);
+    border: 2px solid;
+    border-color: var(--face-light) var(--face-darker) var(--face-darker) var(--face-light);
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: scale(0.97);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  #window.show { opacity: 1; transform: scale(1); }
+
+  .titlebar {
+    background: var(--titlebar);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .titlebar-controls span {
+    display: inline-block;
+    width: 16px; height: 14px;
+    background: var(--face);
+    border: 1px solid;
+    border-color: var(--face-light) var(--face-darker) var(--face-darker) var(--face-light);
+    text-align: center;
+    line-height: 12px;
+    font-size: 11px;
+    color: #000;
+    margin-left: 3px;
+  }
+
+  .body-area { display: flex; }
+
+  /* ---------- Wizard step sidebar ---------- */
+  .sidebar {
+    width: 130px;
+    background: #fff;
+    border-right: 1px solid var(--face-dark);
+    padding: 14px 10px;
+    font-size: 11px;
+  }
+  .sidebar .step {
+    padding: 6px 4px;
+    margin-bottom: 4px;
+    color: #555;
+  }
+  .sidebar .step.active {
+    background: var(--highlight);
+    color: #fff;
+    font-weight: bold;
+  }
+  .sidebar .step.done::before { content: "✓ "; color: green; }
+  .sidebar .step.active.done::before { color: #cfe0ff; }
+
+  .content {
+    flex: 1;
+    padding: 20px 18px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    line-height: 1.5;
+    position: relative;
+  }
+
+  .content h2 {
+    font-size: 15px;
+    margin: 0 0 10px 0;
+    border-bottom: 1px solid var(--face-dark);
+    padding-bottom: 6px;
+  }
+
+  .panel { display: none; flex: 1; flex-direction: column; }
+  .panel.active { display: flex; }
+
+  /* ---------- retro form controls ---------- */
+  .field-row { margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  input[type="text"], input[type="date"], input[type="time"], input[type="email"] {
+    font-family: Tahoma, sans-serif;
+    font-size: 12px;
+    padding: 3px 4px;
+    border: 2px solid;
+    border-color: var(--face-dark) var(--face-light) var(--face-light) var(--face-dark);
+    background: #fff;
+  }
+  label.chip {
+    border: 1px solid var(--face-dark);
+    background: #fff;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  label.chip.checked { background: var(--highlight); color: #fff; border-color: var(--highlight); }
+  label.chip input { display: none; }
+  .chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+  /* ---------- retro buttons ---------- */
+  button.win {
+    font-family: Tahoma, sans-serif;
+    font-size: 12px;
+    background: var(--face);
+    border: 2px solid;
+    border-color: var(--face-light) var(--face-darker) var(--face-darker) var(--face-light);
+    padding: 5px 16px;
+    cursor: pointer;
+  }
+  button.win:active {
+    border-color: var(--face-darker) var(--face-light) var(--face-light) var(--face-darker);
+  }
+  button.win:disabled { color: #888; cursor: default; }
+
+  .btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 12px;
+    margin-top: auto;
+    border-top: 1px solid var(--face-dark);
+  }
+
+  /* ---------- the dodging No button zone ---------- */
+  #dodge-zone {
+    position: relative;
+    height: 60px;
+    margin-top: 10px;
+  }
+  #btn-yes { position: absolute; left: 20px; top: 12px; }
+  #btn-no  { position: absolute; left: 140px; top: 12px; transition: left 0.12s ease, top 0.12s ease; }
+
+  #status-bar {
+    font-size: 11px;
+    color: #333;
+    border-top: 1px solid var(--face-light);
+    background: var(--face);
+    padding: 3px 8px;
+    border-top: 1px solid var(--face-darker);
+  }
+
+  .icon-q {
+    font-size: 28px;
+    margin-right: 10px;
+  }
+  .flex-row { display: flex; align-items: flex-start; }
+
+  a.dl-link {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+
+  .summary-box {
+    background: #fff;
+    border: 2px solid;
+    border-color: var(--face-dark) var(--face-light) var(--face-light) var(--face-dark);
+    padding: 8px;
+    font-size: 12px;
+    white-space: pre-line;
+    margin-bottom: 10px;
+  }
+
+  .note {
+    font-size: 11px;
+    color: #444;
+    background: #ffffcc;
+    border: 1px solid #999;
+    padding: 6px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas" style="position:fixed; inset:0; pointer-events:none; z-index:200; display:none;"></canvas>
+
+<div id="boot">
+  <div class="line" id="boot-l1"></div>
+  <div class="line" id="boot-l2"></div>
+  <div class="line" id="boot-l3"></div>
+  <div class="line" id="boot-l4"><span class="cursor"></span></div>
+</div>
+
+<div id="window">
+  <div class="titlebar">
+    <span>DateService.exe — New Scheduled Task</span>
+    <div class="titlebar-controls"><span>_</span><span>□</span><span>×</span></div>
+  </div>
+
+  <div class="body-area">
+    <div class="sidebar">
+      <div class="step active" data-step="0">1. Prompt</div>
+      <div class="step" data-step="1">2. Interests</div>
+      <div class="step" data-step="2">3. Schedule</div>
+      <div class="step" data-step="3">4. Finish</div>
+    </div>
+
+    <div class="content">
+
+      <!-- STEP 0: Yes/No prompt with dodging No button -->
+      <div class="panel active" data-panel="0">
+        <h2>System Message</h2>
+        <div class="flex-row">
+          <div class="icon-q">❓</div>
+          <div>
+            <strong id="invitee-label">Hi there —</strong><br><br>
+            <span id="asker-label">Jamison</span> would like to schedule a date with you.<br>
+            Do you want to proceed?
+          </div>
+        </div>
+        <div id="dodge-zone">
+          <button class="win" id="btn-yes">Yes</button>
+          <button class="win" id="btn-no">No</button>
+        </div>
+      </div>
+
+      <!-- STEP 1: interests -->
+      <div class="panel" data-panel="1">
+        <h2>Select Interests</h2>
+        <p>Pick a few things you'd enjoy (or add your own):</p>
+        <div class="chip-wrap" id="chip-wrap"></div>
+        <div class="field-row">
+          <input type="text" id="custom-interest" placeholder="Add your own...">
+          <button class="win" id="add-interest">Add</button>
+        </div>
+        <div class="btn-row">
+          <button class="win" data-back="0">Back</button>
+          <button class="win" data-next="2">Next ></button>
+        </div>
+      </div>
+
+      <!-- STEP 2: schedule -->
+      <div class="panel" data-panel="2">
+        <h2>Schedule</h2>
+        <p>Pick a day and time that works for you:</p>
+        <div class="field-row">
+          <label>Date:</label>
+          <input type="date" id="date-input">
+        </div>
+        <div class="field-row">
+          <label>Time:</label>
+          <input type="time" id="time-input">
+        </div>
+        <div class="btn-row">
+          <button class="win" data-back="1">Back</button>
+          <button class="win" id="to-finish" data-next="3">Next ></button>
+        </div>
+      </div>
+
+      <!-- STEP 3: finish -->
+      <div class="panel" data-panel="3">
+        <h2>Finish</h2>
+        <p>Here's what's being scheduled:</p>
+        <div class="summary-box" id="summary"></div>
+        <a class="dl-link" id="ics-link" href="#">📅 Download calendar invite (.ics — Apple &amp; Google Calendar)</a><br>
+        <div class="btn-row" style="border-top:none; margin-top:10px;">
+          <button class="win" data-back="2">Back</button>
+          <button class="win" id="btn-submit">Submit</button>
+        </div>
+        <div id="send-status" class="note" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+  <div id="status-bar">Ready.</div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — edit before sending this link to anyone
+   ============================================================ */
+const CONFIG = {
+  askerName: "Jamison",              // your name, shown in the prompt
+  inviteeName: "",                   // optional: pre-fill a name, e.g. "Sarah". Leave "" for generic "Hi there"
+  ownerEmail: "j.jpurcell593@protonmail.com", // where results get sent automatically (see note below)
+  // NOTE: results are sent via formsubmit.co, a free no-signup email relay.
+  // The FIRST time anyone submits the form, formsubmit.co emails ownerEmail
+  // a one-time confirmation link. Click that link once, and every submission
+  // after that arrives in your inbox automatically -- no further setup.
+  presetInterests: ["Hiking", "Dinner", "Mini Golf", "Movie Night", "Live Music", "Bowling", "Board Games"]
+};
+
+// ---- personalize labels from config ----
+document.getElementById('asker-label').textContent = CONFIG.askerName;
+document.getElementById('invitee-label').textContent = CONFIG.inviteeName
+  ? `Hi ${CONFIG.inviteeName} —`
+  : "Hi there —";
+
+// ---- boot sequence ----
+const bootLines = [
+  ["boot-l1", "DateService.exe v1.0"],
+  ["boot-l2", "Initializing modules..."],
+  ["boot-l3", "Loading scheduler... OK"],
+  ["boot-l4", "Starting application..."]
+];
+let bootDone = false;
+function runBoot() {
+  bootLines.forEach(([id], i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      el.style.opacity = 1;
+      if (id !== 'boot-l4') el.textContent = bootLines[i][1];
+      else el.innerHTML = bootLines[i][1] + ' <span class="cursor"></span>';
+    }, i * 450);
+  });
+  setTimeout(finishBoot, bootLines.length * 450 + 500);
+}
+function finishBoot() {
+  if (bootDone) return;
+  bootDone = true;
+  document.getElementById('boot').style.display = 'none';
+  document.getElementById('window').classList.add('show');
+}
+document.getElementById('boot').addEventListener('click', finishBoot);
+runBoot();
+
+// ---- dodging "No" button ----
+const zone = document.getElementById('dodge-zone');
+const btnNo = document.getElementById('btn-no');
+const btnYes = document.getElementById('btn-yes');
+
+function moveNoButton() {
+  const zw = zone.clientWidth, zh = zone.clientHeight;
+  const bw = btnNo.offsetWidth, bh = btnNo.offsetHeight;
+  const maxX = Math.max(zw - bw - 4, 4);
+  const maxY = Math.max(zh - bh - 4, 4);
+  const newX = Math.random() * maxX;
+  const newY = Math.random() * maxY;
+  btnNo.style.left = newX + 'px';
+  btnNo.style.top = newY + 'px';
+}
+
+function pointerNear(x, y) {
+  const rect = btnNo.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const dist = Math.hypot(x - cx, y - cy);
+  if (dist < 70) moveNoButton();
+}
+
+document.addEventListener('pointermove', (e) => pointerNear(e.clientX, e.clientY));
+btnNo.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  moveNoButton();
+}, { passive: false });
+btnNo.addEventListener('click', (e) => { e.preventDefault(); moveNoButton(); });
+
+btnYes.addEventListener('click', () => goToStep(1));
+
+// ---- interests chips ----
+const chipWrap = document.getElementById('chip-wrap');
+const chosenInterests = new Set();
+
+function addChip(name) {
+  const label = document.createElement('label');
+  label.className = 'chip';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.value = name;
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(name));
+  label.addEventListener('click', (e) => {
+    e.preventDefault();
+    input.checked = !input.checked;
+    label.classList.toggle('checked', input.checked);
+    if (input.checked) chosenInterests.add(name); else chosenInterests.delete(name);
+  });
+  chipWrap.appendChild(label);
+}
+CONFIG.presetInterests.forEach(addChip);
+
+document.getElementById('add-interest').addEventListener('click', () => {
+  const inp = document.getElementById('custom-interest');
+  const val = inp.value.trim();
+  if (val) { addChip(val); inp.value = ''; }
+});
+
+// ---- step navigation ----
+const steps = document.querySelectorAll('.sidebar .step');
+const panels = document.querySelectorAll('.panel');
+
+function goToStep(n) {
+  steps.forEach(s => {
+    const idx = Number(s.dataset.step);
+    s.classList.toggle('active', idx === n);
+    s.classList.toggle('done', idx < n);
+  });
+  panels.forEach(p => p.classList.toggle('active', Number(p.dataset.panel) === n));
+  if (n === 3) buildSummary();
+}
+
+document.querySelectorAll('[data-back]').forEach(b =>
+  b.addEventListener('click', () => goToStep(Number(b.dataset.back)))
+);
+document.querySelectorAll('[data-next]').forEach(b =>
+  b.addEventListener('click', () => goToStep(Number(b.dataset.next)))
+);
+
+// set min date to today
+const dateInput = document.getElementById('date-input');
+dateInput.min = new Date().toISOString().split('T')[0];
+
+// ---- build summary + ics + mailto on final step ----
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function buildSummary() {
+  const dateVal = document.getElementById('date-input').value;
+  const timeVal = document.getElementById('time-input').value || '19:00';
+  const interests = Array.from(chosenInterests).join(', ') || '(none selected)';
+  const who = CONFIG.inviteeName || 'them';
+
+  const summaryText =
+    `Date: ${dateVal || '(not set)'}\n` +
+    `Time: ${timeVal}\n` +
+    `Interests: ${interests}`;
+  document.getElementById('summary').textContent = summaryText;
+
+  // ---- build .ics file ----
+  if (dateVal) {
+    const [y, m, d] = dateVal.split('-').map(Number);
+    const [hh, mm] = timeVal.split(':').map(Number);
+    const start = new Date(y, m - 1, d, hh, mm);
+    const end = new Date(start.getTime() + 60 * 60 * 1000); // 1hr default
+
+    const fmt = (dt) => `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//DateService//EN',
+      'BEGIN:VEVENT',
+      `UID:${Date.now()}@dateservice`,
+      `DTSTAMP:${fmt(new Date())}`,
+      `DTSTART:${fmt(start)}`,
+      `DTEND:${fmt(end)}`,
+      `SUMMARY:Date with ${CONFIG.askerName}`,
+      `DESCRIPTION:Interests: ${interests}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const icsLink = document.getElementById('ics-link');
+    icsLink.href = url;
+    icsLink.download = 'date-invite.ics';
+  }
+
+  // store latest values for the Submit button to use
+  lastResult = { who, summaryText, interests, dateVal, timeVal };
+}
+
+let lastResult = null;
+let alreadySent = false;
+
+document.getElementById('btn-submit').addEventListener('click', () => {
+  if (!lastResult || alreadySent) return;
+  fireConfetti();
+  const { who, summaryText, interests, dateVal, timeVal } = lastResult;
+  sendResults(who, summaryText, interests, dateVal, timeVal);
+});
+
+// ---- confetti burst ----
+function fireConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.display = 'block';
+  const ctx = canvas.getContext('2d');
+
+  const colors = ['#000080', '#c0c0c0', '#008080', '#ffff00', '#ff0000', '#00aa00'];
+  const pieces = [];
+  const count = 140;
+  for (let i = 0; i < count; i++) {
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * 0.3,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 3,
+      vy: 2 + Math.random() * 3,
+      rot: Math.random() * 360,
+      vr: (Math.random() - 0.5) * 12
+    });
+  }
+
+  const duration = 3200;
+  const startTime = performance.now();
+
+  function frame(now) {
+    const elapsed = now - startTime;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    if (elapsed < duration) {
+      requestAnimationFrame(frame);
+    } else {
+      canvas.style.display = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function sendResults(who, summaryText, interests, dateVal, timeVal) {
+  const statusEl = document.getElementById('send-status');
+  const submitBtn = document.getElementById('btn-submit');
+  alreadySent = true;
+  submitBtn.disabled = true;
+
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Sending...';
+
+  fetch(`https://formsubmit.co/ajax/${CONFIG.ownerEmail}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      _subject: `Date request result: ${who}`,
+      respondent: who,
+      date: dateVal || '(not set)',
+      time: timeVal,
+      interests: interests
+    })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Request failed');
+    return res.json();
+  })
+  .then(() => {
+    statusEl.textContent = '✅ Sent!';
+  })
+  .catch((err) => {
+    alreadySent = false; // allow a retry
+    submitBtn.disabled = false;
+    statusEl.textContent = '⚠️ Something went wrong sending this. Please try again.';
+    console.error(
+      'FormSubmit send failed. If this is the very first submission ever, ' +
+      CONFIG.ownerEmail + ' needs to click the one-time confirmation link ' +
+      'formsubmit.co just emailed them, then retry.', err
+    );
+  });
+}
+</script>
+</body>
+</html>
